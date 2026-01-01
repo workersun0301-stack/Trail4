@@ -1,0 +1,48 @@
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
+
+st.set_page_config(page_title="散戶參與度監察系統", layout="wide")
+
+st.title("📊 散戶情緒與股票參與度監察系統")
+st.sidebar.header("系統設定")
+
+# 1. 選擇股票
+ticker = st.sidebar.text_input("輸入股票代碼 (例如: 0941.HK)", "0941.HK")
+period = st.sidebar.selectbox("觀測時間", ["1mo", "3mo", "6mo", "1y"])
+
+# 2. 獲取數據
+data = yf.download(ticker, period=period)
+
+# 3. 模擬散戶指標 (實務上需接入論壇爬蟲數據，此處以成交量與波動率模擬)
+# 邏輯：成交量暴增且波動加大，通常代表散戶情緒高漲
+data['Retail_Vol'] = data['Volume'].rolling(window=5).mean()
+data['Volatility'] = data['High'] - data['Low']
+data['Retail_Index'] = (data['Retail_Vol'] / data['Retail_Vol'].mean()) * (data['Volatility'] / data['Volatility'].mean()) * 50
+
+# 4. 繪製圖表
+fig = go.Figure()
+# 股價線
+fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='股價', yaxis='y1'))
+# 散戶參與指數 (柱狀圖)
+fig.add_trace(go.Bar(x=data.index, y=data['Retail_Index'], name='散戶熱度', opacity=0.3, yaxis='y2'))
+
+fig.update_layout(
+    yaxis=dict(title="股價 (HKD)"),
+    yaxis2=dict(title="散戶熱度指數", overlaying='y', side='right'),
+    hovermode="x unified"
+)
+
+st.plotly_chart(fig, use_container_width=True)
+
+# 5. 曾博士邏輯預警
+latest_index = data['Retail_Index'].iloc[-1]
+st.subheader("💡 系統策略建議 (曾氏邏輯)")
+
+if latest_index > 80:
+    st.warning("⚠️ 散戶參與度過高：市場進入興奮期，建議分批減持或停止追高。")
+elif latest_index < 20:
+    st.success("✅ 散戶參與度極低：市場冷清，符合『買入收息股』的建倉時機。")
+else:
+    st.info("ℹ️ 參與度平穩：建議長線持有，並觀察 2026 減息政策落地。")
